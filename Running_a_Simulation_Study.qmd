@@ -1,0 +1,146 @@
+---
+title: "Running a Simulation Study"
+format: 
+  pdf: default
+tidy: "styler"
+---
+
+## An Example of a statistical simulation
+
+Small scale simulation study to investigate impact of measurement error on (continuous) exposure and/or (continuous) confounding variable. In epidemiological studies of the relation between an exposure and an outcome, this relation is often estimated using regression analysis. As an example, we consider a study of the association between glycated haemoglobin (HbA1c) levels and systolic blood pressure assessed using linear regression. Data from 5092 subjects in the 2015–2016 National Health and Nutrition Examination Survey (NHANES) are used to obtain an estimate of the effect of HbA1c on systolic blood pressure, while adjusting for age, gender and body mass index (BMI).
+
+```{r, include = FALSE}
+library(Hmisc)
+library(mice)
+library(tidyverse)
+
+# Read in data
+d1 <- sasxport.get("data/DEMO_I.xpt")
+d2 <- sasxport.get("data/BPX_I.xpt")
+d3 <- sasxport.get("data/BMX_I.xpt")
+d4 <- sasxport.get("data/GHB_I.xpt")
+d5 <- sasxport.get("data/TCHOL_I.xpt")
+
+d1.t <- subset(d1,select=c("seqn","riagendr","ridageyr"))
+d2.t <- subset(d2,select=c("seqn","bpxsy1"))
+d3.t <- subset(d3,select=c("seqn","bmxbmi"))
+d4.t <- subset(d4,select=c("seqn","lbxgh"))
+d5.t <- subset(d5,select=c("seqn","lbdtcsi"))
+
+d <- merge(d1.t,d2.t)
+d <- merge(d,d3.t)
+d <- merge(d,d4.t)
+d <- merge(d,d5.t)
+
+# rename variables:
+# RIAGENDR - Gender
+# RIDAGEYR - Age in years at screening
+# BPXSY1 - Systolic: Blood pres (1st rdg) mm Hg
+# BMXBMI - Body Mass Index (kg/m**2)
+# LBDTCSI - Total Cholesterol (mmol/L)
+# LBXGH - Glycohemoglobin (%)
+d$age <- d$ridageyr
+d$sex <- d$riagendr
+d$bp <- d$bpxsy1
+d$bmi <- d$bmxbmi
+d$HbA1C <- d$lbxgh
+d$chol <- d$lbdtcsi
+d$age[d$age<18] <- NA
+
+# Select complete cases
+dc <- cc(subset(d,select=c("age","sex","bmi","HbA1C","bp")))
+```
+
+## Analysis
+
+After adjustment for age and gender, it was estimated that HbA1c increases systolic blood pressure by 1.13 mmHg (95% CI 0.73 to 1.52) per unit increase in HbA1c.
+
+```{r}
+summary(lm(bp ~ HbA1C + age + as.factor(sex), data=dc))
+confint(lm(bp ~ HbA1C + age + as.factor(sex), data=dc))
+```
+
+Additional adjustment for BMI resulted in a considerable change in the effect estimate: HbA1c was estimated to increase blood pressure by 0.75 mmHg (95% CI 0.35 to 1.16) per unit increase in HbA1c.
+
+```{r}
+summary(lm(bp ~ HbA1C + bmi + age + as.factor(sex), data=dc))
+confint(lm(bp ~ HbA1C + bmi + age + as.factor(sex), data=dc))
+
+```
+
+## Run the simulation study
+
+One way to investigate the possible impact of measurement error is through a small simulation study.
+For the purpose of this example, the original recordings in the NHANES
+data were assumed to be measured without error.
+Then, in addition, new artificial variables were created that
+represented HbA1c and BMI, but for the situation in which these are
+measured with error. To create these variables, measurement error was
+artificially added to the exposure variable (HbA1c) and/or the
+confounding variable (BMI).
+These errors were drawn from a normal distribution with a mean zero and
+were independent of all variables considered.
+The variance of the normal distribution, defining the amount of
+measurement error added, was altered for different scenarios. Scenarios
+ranged from no measurement error on either HbA1c or BMI (reference
+scenario) to 50% of the variance in HbA1c and/or BMI attributable to
+measurement error. To minimise the impact of simulation error, each
+scenario was repeated 1000 times and the results were averaged per
+scenario over these 1000 repetitions.
+
+```{r, results = 'hide'}
+
+ref <- lm(bp ~ HbA1C + bmi + age + as.factor(sex), data=dc)$coef[2]
+n.sim <- 1e3
+pb <- txtProgressBar(min=1, max= 1e3,style=3, 50)
+perc.me.exp <- seq(0,.5,.1)
+perc.me.conf<- seq(0,.5,.1)
+scenarios <- expand.grid(perc.me.exp,perc.me.conf)
+var.exp <- var(dc$HbA1C)
+var.conf <- var(dc$bmi)
+n <- dim(dc)[1]
+beta.hat <- matrix(ncol=dim(scenarios)[1], nrow=n.sim)
+
+
+
+for (k in 1:n.sim){
+  set.seed(k)
+  for (i in 1:dim(scenarios)[1]){
+    var.me.exp <- var.exp*scenarios[i,1]/(1-scenarios[i,1])
+    var.me.conf <- var.conf*scenarios[i,2]/(1-scenarios[i,2])
+    dc$HbA1C.me <- dc$HbA1C + rnorm(dim(dc)[1], 0, sqrt(var.me.exp))
+    dc$bmi.me <- dc$bmi + rnorm(dim(dc)[1], 0, sqrt(var.me.conf))
+    beta.hat[k,i] <- lm(bp ~ HbA1C.me + age + bmi.me + as.factor(sex), data=dc)$coef[2]
+    setTxtProgressBar(pb, k)
+  }}
+
+close(pb)
+```
+
+## Results
+
+Thus figure shows the impact of measurement error on HbA1c and/or BMI on the estimate of the regression coefficient of HbA1c .The relation between HbA1c and systolic blood pressure was attenuated when measurement error was added to HbA1c, but not when measurement error was added to BMI. The association became stronger as measurement error was added solely to the confounding variable BMI. The reason for this effect is that, with increasing levels of measurement error on BMI, adjustment for the confounding due to BMI becomes less efficient and the effect estimate gets closer to the unadjusted estimate (1.13 mmHg). Due to measurement error, a type of residual confounding is introduced. In the case of measurement error on HbA1c as well as BMI, both phenomena play a role and may cancel each other out. In this study, measurement error on HbA1c seemed more influential than measurement error on BMI.
+
+```{r}
+tot.mat <- cbind(100*scenarios,apply(beta.hat,2,mean))
+colnames(tot.mat) <- c("me.exp","me.conf","estimate")
+ggplot(tot.mat, aes(me.exp, me.conf)) +
+  geom_tile(color="white",aes(fill = estimate)) +
+  geom_text(aes(label = round(estimate, 2))) +
+  scale_fill_gradient2(low="#D55E00",
+                       mid="white",
+                       high = "#56B4E9", 
+                       midpoint=ref) +
+  labs(x=paste("% of total variance of HbA1c due to measurement error"), 
+       y=paste("% of total variance of BMI due to measurement error")) +
+  coord_equal()+
+  scale_y_continuous(breaks=unique(tot.mat[,1]))+
+  scale_x_continuous(breaks=unique(tot.mat[,1]))+
+  theme(panel.background = element_rect(fill='white', colour='grey'), 
+        plot.title=element_text(hjust=0), 
+        axis.ticks=element_blank(),
+        axis.title=element_text(size=12),
+        axis.text=element_text(size=10),
+        legend.title=element_text(size=12),
+        legend.text=element_text(size=10))
+```

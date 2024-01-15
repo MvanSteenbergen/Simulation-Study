@@ -1,0 +1,31 @@
+{
+    "id": "22C3C311",
+    "path": "~/Running a Simulation Study/Running_a_Simulation_Study.qmd",
+    "project_path": "Running_a_Simulation_Study.qmd",
+    "type": "quarto_markdown",
+    "hash": "1039741167",
+    "contents": "",
+    "dirty": false,
+    "created": 1705227991801.0,
+    "source_on_save": true,
+    "relative_order": 1,
+    "properties": {
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "source_window_id": "",
+        "Source": "Source",
+        "docOutlineVisible": "1",
+        "cursorPosition": "10,0",
+        "scrollLine": "1",
+        "rmdVisualModeLocation": "6300:0",
+        "rmdVisualCollapsedChunks": ""
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1705348917,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1705348917022,
+    "read_only": false,
+    "read_only_alternatives": []
+}
